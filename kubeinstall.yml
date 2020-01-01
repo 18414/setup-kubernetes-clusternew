@@ -1,13 +1,61 @@
 ---
-- hosts: localhost
+- hosts: all
   become: true
   tasks: 
     - name: Create repository for kubernetes
       yum_repository: 
         name: kubernetes
         desciption:  
-        file: 
+        file: kuberepo
         baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
-        gpgcheck: 1
-        enabled: 1
-        
+        gpgcheck: yes
+        enabled: yes
+        repo_gpgcheck: yes
+        gpgkey: https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+
+    - name: Install kubernetes base packages
+      yum:   
+        name: "{{ item }}"
+        state: latest
+      with_items: 
+        - kubelet
+        - kubeadm 
+        - kubectl
+
+
+    - name: Disable SELinux 
+      selinux:
+        policy: targeted
+        state: permissive 
+
+    - name: Disable SWAP
+      command: "{{ item }}" 
+      with_items: 
+        - "sed -i '/swap/d' /etc/fstab"
+        - "swapoff -a"
+
+
+    - name: Setup Pod Network
+      command: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
+      delegate_to: master
+      
+
+    - name: create Cluster with kubeadm
+      command: "kubeadm init –pod-network-cidr=10.244.0.0/16"
+      delegate_to: master
+
+    - name: Check Status of Cluster
+      command: kubectl get pods --all-namespaces
+      register: clus_stat
+  
+    - debug: msg={{ clus_stat }}
+  
+ 
+    - name: Manage Cluster as Regular User
+      shell: "{{ item }}"
+      with_items: 
+        - "mkdir -p $HOME/.kube"
+        - "cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
+        - "chown $(id -u):$(id -g) $HOME/.kube/config"
+      delegate_to: master
+ 
