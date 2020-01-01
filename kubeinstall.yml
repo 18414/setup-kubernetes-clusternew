@@ -1,0 +1,13 @@
+---
+- hosts: localhost
+  become: true
+  tasks: 
+    - name: Create repository for kubernetes
+      yum_repository: 
+        name: kubernetes
+        desciption:  
+        file: 
+        baseurl: https://packages.cloud.google.com/yum/repos/kubernetes-el7-x86_64
+        gpgcheck: 1
+        enabled: 1
+        
