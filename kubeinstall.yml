@@ -22,28 +22,28 @@
         - kubeadm 
         - kubectl
         
-   - name: Start and enable Kubelet service 
-     service: 
-        name: kubelet
-        state: started
-        enabled: yes
+    - name: Start and enable Kubelet service 
+      service: 
+       name: kubelet
+       state: started
+       enabled: yes
     
-   - name: Add Docker repo
-     get_url:
+    - name: Add Docker repo
+      get_url:
        url: https://download.docker.com/linux/centos/docker-ce.repo
        dest: /etc/yum.repos.d/docker-ce.repo
        mode: 0644 
 
-   - name: Install Kubernets compatible Docker 
-     yum: 
-       name: docker-ce-18.06.1.ce-3.el7
-       state: installed
+    - name: Install Kubernets compatible Docker 
+      yum: 
+        name: docker-ce-18.06.1.ce-3.el7
+        state: installed
 
-   - name: Start and enable Docker service
-     service:
-       name: docker
-       state: started
-       enabled: yes
+    - name: Start and enable Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
        
 
     - name: Disable SELinux 
@@ -87,18 +87,6 @@
         - "cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
         - "chown $(id -u):$(id -g) $HOME/.kube/config"
       delegate_to: master
-
-
-    - name: Disable SELinux 
-      selinux:
-        policy: targeted
-        state: permissive 
-
-    - name: Disable SWAP
-      command: "{{ item }}" 
-      with_items: 
-        - "sed -i '/swap/d' /etc/fstab"
-        - "swapoff -a"
 
 
     - name: Setup Pod Network
