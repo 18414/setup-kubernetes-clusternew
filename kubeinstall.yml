@@ -1,7 +1,9 @@
 ---
 - hosts: all
   become: true
-  
+  vars: 
+    masterip: "{{ mip }}"
+
   tasks: 
     - name: Create repository for kubernetes
       yum_repository: 
@@ -60,10 +62,10 @@
         - "swapoff -a"
 
     - name: Initialize kubernetes cluster 
-      command: "kubeadm init –pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address='{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}'"
+      command: "kubeadm init –pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address='{{ masterip }}'"
       register: initialize_clus
       delegate_to: "{{ item }}" 
-      with_items: "{{groups['master']}}"
+      with_items: "{{ groups['master'] }}"
 
     - debug: msg={{ initialize_clus }}
 
@@ -71,7 +73,7 @@
       command: kubectl get pods --all-namespaces
       register: clus_stat
       delegate_to: "{{ item }}" 
-      with_items: "{{groups['master']}}"
+      with_items: "{{ groups['master'] }}"
   
     - debug: msg={{ clus_stat }}
   
@@ -80,23 +82,16 @@
       command: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
       register: podnw
       delegate_to: "{{ item }}" 
-      with_items: "{{groups['master']}}"
+      with_items: "{{ groups['master'] }}"
       
     - debug: msg={{ podnw }}
 
-    - name: create Cluster with kubeadm
-      command: "kubeadm init –pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address='{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}'"
-      register: initialize_clus
-      delegate_to: "{{ item }}" 
-      with_items: "{{groups['master']}}"
-
-    - debug: msg={{ initialize_clus }}
 
     - name: Check Status of Cluster
       command: kubectl get pods --all-namespaces
       register: clus_stat
       delegate_to: "{{ item }}" 
-      with_items: "{{groups['master']}}"
+      with_items: "{{ groups['master'] }}"
   
     - debug: msg={{ clus_stat }}
   
@@ -108,18 +103,18 @@
         - "cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
         - "chown $(id -u):$(id -g) $HOME/.kube/config"
       delegate_to: "{{ item }}" 
-      with_items: "{{groups['master']}}"
+      with_items: "{{ groups['master'] }}"
 
 
     - name: Get token list 
       shell: kubeadm token list 
       register: kubjoin
       delegate_to: "{{ item }}" 
-      with_items: "{{groups['master']}}"
+      with_items: "{{ groups['master'] }}"
 
     - debug: msg={{ kubjoin }}
   
     - name: join worker node 
-      command: kubeadm join "{{ master }}":6443 --token "{{ kubjoin }}"  --discovery-token-unsafe-skip-ca-verification 
+      command: "kubeadm join '{{ masterip }}':6443 --token '{{ kubjoin }}'  --discovery-token-unsafe-skip-ca-verification"
       delegate_to: "{{ item }}" 
-      with_items: "{{groups['node1']}}"
+      with_items: "{{ groups['node1'] }}"
