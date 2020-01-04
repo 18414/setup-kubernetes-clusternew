@@ -28,10 +28,13 @@
         
     - name: Start and enable Kubelet service 
       service: 
-       name: kubelet
-       state: started
-       enabled: yes
-    
+        name: kubelet.service
+        state: started
+        enabled: yes
+      register: kubeser
+
+    - debug: msg={{ kubeser }}
+       
     - name: Add Docker repo
       get_url:
         url: https://download.docker.com/linux/centos/docker-ce.repo
@@ -48,6 +51,9 @@
         name: docker
         state: started
         enabled: yes
+      register: docser
+   
+    - debug: msg={{ docser }}
        
 
     - name: Disable SELinux 
@@ -62,7 +68,7 @@
         - "swapoff -a"
 
     - name: Initialize kubernetes cluster 
-      command: "kubeadm init –pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address='{{ masterip }}'"
+      command: "kubeadm init --apiserver-advertise-address={{ masterip }} --pod-network-cidr=10.244.0.0/16"
       register: initialize_clus
       delegate_to: "{{ item }}" 
       with_items: "{{ groups['master'] }}"
@@ -114,7 +120,7 @@
 
     - debug: msg={{ kubjoin }}
   
-    - name: join worker node 
-      command: "kubeadm join '{{ masterip }}':6443 --token '{{ kubjoin }}'  --discovery-token-unsafe-skip-ca-verification"
-      delegate_to: "{{ item }}" 
-      with_items: "{{ groups['node1'] }}"
+#    - name: join worker node 
+ #     command: "kubeadm join {{ masterip }}:6443 --token {{ kubjoin }}  --discovery-token-unsafe-skip-ca-verification"
+  #    delegate_to: "{{ item }}" 
+   #   with_items: "{{ groups['node1'] }}"
