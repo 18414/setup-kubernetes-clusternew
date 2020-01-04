@@ -14,10 +14,6 @@
         repo_gpgcheck: yes
         gpgkey: "https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg"
 
-#    - name: Rebuild repo
- #     command: "yum makecache fast"
-  #    async: 120
-   #   poll: 5
 
     - name: Install kubernetes base packages
       yum:   
@@ -63,25 +59,19 @@
         - "sed -i '/swap/d' /etc/fstab"
         - "swapoff -a"
 
-
-    - name: Setup Pod Network
-      command: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
-      register: podnw
-      delegate_to: "{{groups['master']}}"
-      
-    - debug: msg={{ podnw }}
-
     - name: Initialize kubernetes cluster 
       command: "kubeadm init –pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address='{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}'"
       register: initialize_clus
-      delegate_to: "{{groups['master']}}"
+      delegate_to: "{{ item }}" 
+      with_items: "{{groups['master']}}"
 
     - debug: msg={{ initialize_clus }}
 
     - name: Check Status of Cluster
       command: kubectl get pods --all-namespaces
       register: clus_stat
-      delegate_to: "{{groups['master']}}"
+      delegate_to: "{{ item }}" 
+      with_items: "{{groups['master']}}"
   
     - debug: msg={{ clus_stat }}
   
@@ -89,21 +79,24 @@
     - name: Setup Pod Network
       command: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
       register: podnw
-      delegate_to: "{{groups['master']}}"
+      delegate_to: "{{ item }}" 
+      with_items: "{{groups['master']}}"
       
     - debug: msg={{ podnw }}
 
     - name: create Cluster with kubeadm
       command: "kubeadm init –pod-network-cidr=10.244.0.0/16 --apiserver-advertise-address='{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}'"
       register: initialize_clus
-      delegate_to: "{{groups['master']}}"
+      delegate_to: "{{ item }}" 
+      with_items: "{{groups['master']}}"
 
     - debug: msg={{ initialize_clus }}
 
     - name: Check Status of Cluster
       command: kubectl get pods --all-namespaces
       register: clus_stat
-      delegate_to: "{{groups['master']}}"
+      delegate_to: "{{ item }}" 
+      with_items: "{{groups['master']}}"
   
     - debug: msg={{ clus_stat }}
   
@@ -114,16 +107,19 @@
         - "mkdir -p $HOME/.kube"
         - "cp -i /etc/kubernetes/admin.conf $HOME/.kube/config"
         - "chown $(id -u):$(id -g) $HOME/.kube/config"
-      delegate_to: "{{groups['master']}}"
+      delegate_to: "{{ item }}" 
+      with_items: "{{groups['master']}}"
 
 
     - name: Get token list 
       shell: kubeadm token list 
       register: kubjoin
-      delegate_to: node1
+      delegate_to: "{{ item }}" 
+      with_items: "{{groups['master']}}"
 
     - debug: msg={{ kubjoin }}
   
     - name: join worker node 
       command: kubeadm join "{{ master }}":6443 --token "{{ kubjoin }}"  --discovery-token-unsafe-skip-ca-verification 
-      delegate_to: "{{groups['master']}}"
+      delegate_to: "{{ item }}" 
+      with_items: "{{groups['node1']}}"
