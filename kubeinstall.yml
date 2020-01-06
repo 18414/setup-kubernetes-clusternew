@@ -3,8 +3,18 @@
   become: true
   vars: 
     masterip: "{{ mip }}"
-
   tasks: 
+    - name: Bring private ip of remote server
+      set_fact:
+        mprivateip: "{{ ansible_eth0.ipv4.address }}"
+      run_once: true
+      delegate_to: "{{ item }}" 
+     # delegate_facts: true
+      with_items: "{{ groups['master'] }}"  
+ 
+    - debug: msg={{ mprivateip }}
+      tags: pip
+
     - name: Disable SWAP
       command: "{{ item }}" 
       with_items: 
@@ -71,10 +81,11 @@
        
 
     - name: Initialize kubernetes cluster 
-      command: "kubeadm init --apiserver-advertise-address={{ masterip }} --pod-network-cidr=10.244.0.0/16"
+      command: "kubeadm init --apiserver-advertise-address=172.31.86.209 --pod-network-cidr=10.244.0.0/16"
       register: initialize_clus
       ignore_errors: yes
-      delegate_to: "{{ item }}" 
+      run_once: true
+      delegate_to: "{{ item }}"
       with_items: "{{ groups['master'] }}"
 
     - debug: msg={{ initialize_clus }}
@@ -82,16 +93,20 @@
     - name: Manage Cluster as Regular User
       shell: |  
         /bin/mkdir -p $HOME/.kube
-        /bin/cpcp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+        /bin/cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
         /bin/chown $(id -u):$(id -g) $HOME/.kube/config
-      delegate_to: "{{ item }}" 
+      async: 60
+      poll: 10
+      run_once: true
+      delegate_to: "{{ item }}"
       with_items: "{{ groups['master'] }}"
 
     - name: Setup Pod Network
       command: "kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml"
       register: podnw
       ignore_errors: yes
-      delegate_to: "{{ item }}" 
+      run_once: true
+      delegate_to: "{{ item }}"
       with_items: "{{ groups['master'] }}"
       
     - debug: msg={{ podnw }}
@@ -99,7 +114,8 @@
     - name: Get token list 
       shell: kubeadm token list 
       register: kubjoin
-      delegate_to: "{{ item }}" 
+      run_once: true
+      delegate_to: "{{ item }}"
       with_items: "{{ groups['master'] }}"
 
     - debug: msg={{ kubjoin }}
@@ -108,6 +124,9 @@
     - name: Create CA-CERT
       shell: "openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //'"
       register: cacert
+      run_once: true
+      delegate_to: "{{ item }}"
+      with_items: "{{ groups['master'] }}"
 
     - debug:
         msg: "{{ cacert }}"
@@ -115,16 +134,17 @@
 
   
     - name: join worker node 
-      command: "kubeadm join {{ masterip }}:6443 --token {{ kubjoin.stdout_lines[1].split()[0] }}  --discovery-token-ca-cert-hash {{ cacert.stdout }}"
+      command: "kubeadm join 172.31.86.209:6443 --token {{ kubjoin.stdout[1].split()[0] }}  --discovery-token-ca-cert-hash sha256:{{ cacert.stdout }}"
+      run_once: true
       #command: "kubeadm join {{ masterip }}:6443 --token {{  kubjoin.stdout_lines[1].split()[0] }}  --discovery-token-unsafe-skip-ca-verification" 
-      delegate_to: "{{ item }}" 
-      with_items: "{{ groups['node1'] }}"
+      delegate_to: "{{ item }}"
+      with_items: "{{ groups['worker'] }}"
    
     - name: Check Status of Cluster
       command: kubectl get pods --all-namespaces
       register: clus_stat
       ignore_errors: true
-      delegate_to: "{{ item }}" 
+      delegate_to: "{{ item }}"
       with_items: "{{ groups['master'] }}"
   
     - debug: msg={{ clus_stat }}
